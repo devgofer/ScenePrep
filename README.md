@@ -35,7 +35,7 @@ For example, this URL is recognized:
 https://tv.apple.com/tw/episode/.../umc.cmc.zb0yksqtym68hasbq8mj4jwp?showId=...&playableId=...
 ```
 
-The next provider milestone is to connect an authorized subtitle source to the existing HLS pipeline.
+The provider boundary now accepts an authorized, unencrypted subtitle/HLS URL and passes it into the existing HLS pipeline. ScenePrep still does not obtain protected Apple TV playback resources itself.
 
 ## Important limitation
 
@@ -65,10 +65,19 @@ List available subtitle tracks:
 python -m scene_prep.cli "https://example.com/master.m3u8" --list
 ```
 
-Download English subtitles as SRT:
+Download English subtitles as SRT from a direct authorized HLS source:
 
 ```bash
 python -m scene_prep.cli "https://example.com/master.m3u8" --lang en
+```
+
+For an Apple TV episode URL, provide the authorized unencrypted subtitle/HLS source explicitly:
+
+```bash
+python -m scene_prep.cli \
+  "https://tv.apple.com/tw/episode/.../umc.cmc....?showId=..." \
+  --subtitle-url "https://example.com/subtitles/master.m3u8" \
+  --lang en
 ```
 
 Keep WebVTT:
@@ -113,7 +122,7 @@ ScenePrep/
 - [ ] Better HLS timestamp-map handling
 - [ ] Subtitle cleanup and duplicate-cue detection
 - [x] Apple TV episode URL parsing
-- [ ] Connect an authorized Apple TV subtitle source
+- [x] Connect an authorized Apple TV subtitle source
 - [ ] Episode metadata retrieval
 - [ ] AI vocabulary extraction
 - [ ] Grammar and natural-expression analysis
