@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .apple_tv import AppleTVSubtitleProvider, parse_apple_tv_episode
 from .hls import HLSClient
 from .subtitle import save_subtitle
 
@@ -11,7 +12,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Download legally accessible HLS WebVTT subtitles."
     )
-    parser.add_argument("url", help="Master HLS .m3u8 URL you are authorized to access.")
+    parser.add_argument(
+        "url",
+        help="Authorized HLS .m3u8 URL or Apple TV episode URL.",
+    )
     parser.add_argument("--lang", default="en", help="Subtitle language (default: en).")
     parser.add_argument("--format", choices=("vtt", "srt"), default="srt")
     parser.add_argument("-o", "--output", help="Output file path.")
@@ -22,10 +26,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    client = HLSClient(user_agent=args.user_agent)
 
     try:
+        if args.url.startswith(("https://tv.apple.com/", "http://tv.apple.com/")):
+            episode = parse_apple_tv_episode(args.url)
+            AppleTVSubtitleProvider().resolve_subtitle_url(episode)
+
+        client = HLSClient(user_agent=args.user_agent)
         tracks = client.list_subtitle_tracks(args.url)
+
         if args.list:
             if not tracks:
                 print("No subtitle tracks found.")
