@@ -7,7 +7,12 @@ ScenePrep is a Python CLI for obtaining **WebVTT subtitles from HLS subtitle pla
 ## What it does
 
 ```
-Master .m3u8
+Apple TV episode URL / Master .m3u8
+    |
+    +--> provider layer
+    |       |
+    |       +--> Apple TV episode metadata
+    |       +--> authorized subtitle source hand-off
     |
     +--> subtitle tracks
             |
@@ -19,6 +24,18 @@ Master .m3u8
                                     |
                                     +--> VTT or SRT
 ```
+
+## Apple TV input
+
+ScenePrep recognizes Apple TV episode URLs and extracts the episode, show, and playable IDs. The Apple TV provider deliberately stops before any DRM/FairPlay or access-control circumvention. An authorized, unencrypted subtitle/HLS source is still required before the existing HLS downloader can fetch subtitles.
+
+For example, this URL is recognized:
+
+```text
+https://tv.apple.com/tw/episode/.../umc.cmc.zb0yksqtym68hasbq8mj4jwp?showId=...&playableId=...
+```
+
+The next provider milestone is to connect an authorized subtitle source to the existing HLS pipeline.
 
 ## Important limitation
 
@@ -95,7 +112,9 @@ ScenePrep/
 - [x] Unit tests
 - [ ] Better HLS timestamp-map handling
 - [ ] Subtitle cleanup and duplicate-cue detection
-- [ ] Episode metadata
+- [x] Apple TV episode URL parsing
+- [ ] Connect an authorized Apple TV subtitle source
+- [ ] Episode metadata retrieval
 - [ ] AI vocabulary extraction
 - [ ] Grammar and natural-expression analysis
 - [ ] Pre-watch English lesson generation
