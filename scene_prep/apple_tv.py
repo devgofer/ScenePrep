@@ -27,7 +27,7 @@ def parse_apple_tv_episode(url: str) -> AppleTVEpisode:
     parts = [part for part in parsed.path.split("/") if part]
     try:
         episode_index = parts.index("episode")
-        episode_id = parts[episode_index + 2] if parts[episode_index + 1] else ""
+        episode_id = parts[episode_index + 2]
     except (ValueError, IndexError):
         raise ValueError(
             "Apple TV URL must be an episode URL such as "
@@ -50,14 +50,31 @@ class AppleTVSubtitleProvider:
     """
     Apple TV URL adapter.
 
-    This provider intentionally does not bypass DRM, FairPlay, authentication,
-    encryption, or other access controls. It parses episode metadata from the
-    public URL and provides a clear hand-off for an authorized subtitle source.
+    The provider is responsible only for the public URL -> episode identity
+    boundary. It never attempts to obtain protected playback resources.
+
+    An authorized subtitle source can be handed to this provider by the caller.
+    That keeps the Apple TV adapter independent from the HLS downloader and
+    makes the access-control boundary explicit.
     """
 
-    def resolve_subtitle_url(self, episode: AppleTVEpisode) -> str:
-        raise NotImplementedError(
-            "Apple TV does not expose a public subtitle playlist in the episode "
-            "page URL. ScenePrep cannot bypass DRM or access controls. "
-            "Provide an authorized unencrypted subtitle/HLS URL or subtitle file."
-        )
+    def resolve_subtitle_url(
+        self,
+        episode: AppleTVEpisode,
+        *,
+        authorized_subtitle_url: str | None = None,
+    ) -> str:
+        if authorized_subtitle_url is None:
+            raise ValueError(
+                "No authorized subtitle source was provided for this Apple TV "
+                "episode. ScenePrep does not bypass DRM, FairPlay, "
+                "authentication, encryption, or access controls. Provide an "
+                "authorized unencrypted subtitle/HLS URL with "
+                "--subtitle-url."
+            )
+
+        parsed = urlparse(authorized_subtitle_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Authorized subtitle source must be an HTTP(S) URL.")
+
+        return authorized_subtitle_url
