@@ -26,9 +26,33 @@ def test_reject_non_apple_tv_url():
         parse_apple_tv_episode("https://example.com/episode/123")
 
 
-def test_provider_does_not_bypass_access_controls():
+def test_provider_requires_authorized_source():
     episode = parse_apple_tv_episode(URL)
     provider = AppleTVSubtitleProvider()
 
-    with pytest.raises(NotImplementedError, match="cannot bypass DRM"):
+    with pytest.raises(ValueError, match="No authorized subtitle source"):
         provider.resolve_subtitle_url(episode)
+
+
+def test_provider_accepts_authorized_source():
+    episode = parse_apple_tv_episode(URL)
+    provider = AppleTVSubtitleProvider()
+
+    assert (
+        provider.resolve_subtitle_url(
+            episode,
+            authorized_subtitle_url="https://example.com/subtitles/master.m3u8",
+        )
+        == "https://example.com/subtitles/master.m3u8"
+    )
+
+
+def test_provider_rejects_invalid_source():
+    episode = parse_apple_tv_episode(URL)
+    provider = AppleTVSubtitleProvider()
+
+    with pytest.raises(ValueError, match="HTTP"):
+        provider.resolve_subtitle_url(
+            episode,
+            authorized_subtitle_url="file:///tmp/subtitles.m3u8",
+        )
