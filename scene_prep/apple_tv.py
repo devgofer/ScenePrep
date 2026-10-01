@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from urllib.parse import parse_qs, urlparse
+
+import requests
 
 
 APPLE_TV_HOSTS = {"tv.apple.com"}
+M3U8_URL_RE = re.compile(r"https?://[^\"'\s<>]+\.m3u8[^\"'\s<>]*")
+M3U8_ESCAPED_RE = re.compile(r"https?:\\\\/\\\\/[^\"'\s<>]+\.m3u8[^\"'\s<>]*")
 
 
 @dataclass(frozen=True)
@@ -50,14 +55,55 @@ class AppleTVSubtitleProvider:
     """
     Apple TV URL adapter.
 
-    This provider intentionally does not bypass DRM, FairPlay, authentication,
-    encryption, or other access controls. It parses episode metadata from the
-    public URL and provides a clear hand-off for an authorized subtitle source.
+    This provider intentionally does not bypass DRM, FairPlay, authentication, or
+    access controls. It only uses authorized responses available to the signed-in
+    user and supports manual hand-off when direct subtitle URLs are provided.
     """
 
-    def resolve_subtitle_url(self, episode: AppleTVEpisode) -> str:
-        raise NotImplementedError(
-            "Apple TV does not expose a public subtitle playlist in the episode "
-            "page URL. ScenePrep cannot bypass DRM or access controls. "
-            "Provide an authorized unencrypted subtitle/HLS URL or subtitle file."
+    def __init__(
+        self,
+        *,
+        timeout: float = 20.0,
+        user_agent: str = "ScenePrep/0.1",
+        cookies: dict[str, str] | None = None,
+    ) -> None:
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": user_agent})
+        if cookies:
+            self.session.cookies.update(cookies)
+
+    def _get_text(self, url: str) -> str:
+        response = self.session.get(url, timeout=self.timeout)
+        response.raise_for_status()
+        return response.text
+
+    @staticmethod
+    def _score_candidate(url: str) -> tuple[int, int, int]:
+        lower = url.lower()
+        subtitle_hint = int("subtitle" in lower or "cc" in lower or "vtt" in lower)
+        https_hint = int(lower.startswith("https://"))
+        return subtitle_hint, https_hint, -len(url)
+
+    def _extract_hls_candidates(self, html: str) -> list[str]:
+        candidates = set(M3U8_URL_RE.findall(html))
+        for match in M3U8_ESCAPED_RE.findall(html):
+            candidates.add(match.replace("\\/", "/"))
+        return sorted(candidates, key=self._score_candidate, reverse=True)
+
+    def resolve_subtitle_url(
+        self,
+        episode: AppleTVEpisode,
+        *,
+        fallback_subtitle_url: str | None = None,
+    ) -> str:
+        candidates = self._extract_hls_candidates(self._get_text(episode.url))
+        if candidates:
+            return candidates[0]
+        if fallback_subtitle_url:
+            return fallback_subtitle_url
+        raise ValueError(
+            "Could not find an authorized HLS subtitle source from the Apple TV "
+            "episode page. Provide --cookies-file for your signed-in session or "
+            "--subtitle-url with an authorized subtitle/master playlist URL."
         )

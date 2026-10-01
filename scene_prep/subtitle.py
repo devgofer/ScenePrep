@@ -61,10 +61,34 @@ def vtt_to_srt(vtt: str) -> str:
     return "\n".join(output)
 
 
+def vtt_to_text(vtt: str) -> str:
+    lines = vtt_to_srt(vtt).splitlines()
+    transcript_lines: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.isdigit() and i + 2 < len(lines) and "-->" in lines[i + 1]:
+            i += 2
+            cue_text: list[str] = []
+            while i < len(lines) and lines[i].strip():
+                cue_text.append(lines[i].strip())
+                i += 1
+            text = " ".join(cue_text).strip()
+            if text and (not transcript_lines or transcript_lines[-1] != text):
+                transcript_lines.append(text)
+        i += 1
+    return "\n".join(transcript_lines) + ("\n" if transcript_lines else "")
+
+
 def save_subtitle(vtt: str, output_path: str, fmt: str = "vtt") -> None:
     fmt = fmt.lower()
-    if fmt not in {"vtt", "srt"}:
-        raise ValueError("Format must be 'vtt' or 'srt'.")
-    content = vtt if fmt == "vtt" else vtt_to_srt(vtt)
+    if fmt not in {"vtt", "srt", "txt"}:
+        raise ValueError("Format must be 'vtt', 'srt', or 'txt'.")
+    if fmt == "vtt":
+        content = vtt
+    elif fmt == "srt":
+        content = vtt_to_srt(vtt)
+    else:
+        content = vtt_to_text(vtt)
     with open(output_path, "w", encoding="utf-8") as file:
         file.write(content)
