@@ -26,41 +26,32 @@ def test_reject_non_apple_tv_url():
         parse_apple_tv_episode("https://example.com/episode/123")
 
 
-class _Response:
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-    def raise_for_status(self) -> None:
-        return None
-
-
-def test_provider_resolves_hls_from_episode_page():
-    episode = parse_apple_tv_episode(URL)
-    provider = AppleTVSubtitleProvider()
-    provider.session.get = lambda *_args, **_kwargs: _Response(
-        '<script>const x = "https://example.com/subtitles/en/main.m3u8";</script>'
-    )
-
-    resolved = provider.resolve_subtitle_url(episode)
-    assert resolved == "https://example.com/subtitles/en/main.m3u8"
-
-
-def test_provider_uses_fallback_when_page_has_no_hls():
-    episode = parse_apple_tv_episode(URL)
-    provider = AppleTVSubtitleProvider()
-    provider.session.get = lambda *_args, **_kwargs: _Response("<html></html>")
-
-    resolved = provider.resolve_subtitle_url(
-        episode,
-        fallback_subtitle_url="https://fallback.example.com/master.m3u8",
-    )
-    assert resolved == "https://fallback.example.com/master.m3u8"
-
-
 def test_provider_requires_authorized_source():
     episode = parse_apple_tv_episode(URL)
     provider = AppleTVSubtitleProvider()
-    provider.session.get = lambda *_args, **_kwargs: _Response("<html></html>")
-
-    with pytest.raises(ValueError, match="Could not find an authorized HLS subtitle source"):
+    with pytest.raises(ValueError, match="No authorized subtitle source"):
         provider.resolve_subtitle_url(episode)
+
+
+def test_provider_accepts_authorized_source():
+    episode = parse_apple_tv_episode(URL)
+    provider = AppleTVSubtitleProvider()
+
+    assert (
+        provider.resolve_subtitle_url(
+            episode,
+            authorized_subtitle_url="https://example.com/subtitles/master.m3u8",
+        )
+        == "https://example.com/subtitles/master.m3u8"
+    )
+
+
+def test_provider_rejects_invalid_source():
+    episode = parse_apple_tv_episode(URL)
+    provider = AppleTVSubtitleProvider()
+
+    with pytest.raises(ValueError, match="HTTP"):
+        provider.resolve_subtitle_url(
+            episode,
+            authorized_subtitle_url="file:///tmp/subtitles.m3u8",
+        )

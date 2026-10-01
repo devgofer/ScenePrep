@@ -25,7 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--subtitle-url",
-        help="Authorized subtitle/master .m3u8 URL fallback (used if Apple TV URL cannot be resolved).",
+        help=(
+            "Authorized unencrypted subtitle/HLS playlist URL for an Apple TV "
+            "episode. Required when the input is an Apple TV episode URL."
+        ),
     )
     parser.add_argument("--user-agent", default="ScenePrep/0.1")
     return parser
