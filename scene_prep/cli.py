@@ -3,9 +3,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .apple_tv import AppleTVSubtitleProvider, parse_apple_tv_episode
 from .hls import HLSClient
-from .subtitle import save_subtitle
+from .service import generate_subtitles, resolve_source_url
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,9 +16,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Authorized HLS .m3u8 URL or Apple TV episode URL.",
     )
     parser.add_argument("--lang", default="en", help="Subtitle language (default: en).")
-    parser.add_argument("--format", choices=("vtt", "srt"), default="srt")
+    parser.add_argument("--format", choices=("vtt", "srt", "both"), default="both")
     parser.add_argument("-o", "--output", help="Output file path.")
     parser.add_argument("--list", action="store_true", help="List subtitle tracks and exit.")
+    parser.add_argument(
+        "--cookies-file",
+        help="Path to browser-exported cookies file in Netscape format.",
+    )
     parser.add_argument(
         "--subtitle-url",
         help=(
@@ -35,18 +38,15 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
-        input_url = args.url
-        if input_url.startswith(("https://tv.apple.com/", "http://tv.apple.com/")):
-            episode = parse_apple_tv_episode(input_url)
-            input_url = AppleTVSubtitleProvider().resolve_subtitle_url(
-                episode,
-                authorized_subtitle_url=args.subtitle_url,
-            )
-
-        client = HLSClient(user_agent=args.user_agent)
-        tracks = client.list_subtitle_tracks(input_url)
-
         if args.list:
+            source_url, cookies = resolve_source_url(
+                url=args.url,
+                cookies_file=args.cookies_file,
+                subtitle_url=args.subtitle_url,
+                user_agent=args.user_agent,
+            )
+            client = HLSClient(user_agent=args.user_agent, cookies=cookies)
+            tracks = client.list_subtitle_tracks(source_url)
             if not tracks:
                 print("No subtitle tracks found.")
                 return 0
@@ -60,12 +60,18 @@ def main() -> int:
                 print(f"{index}. {track.label}{suffix}")
             return 0
 
-        track = client.choose_track(tracks, args.lang)
-        print(f"Selected: {track.label}")
-        vtt = client.download_webvtt(track)
-        output = args.output or f"subtitle.{args.format}"
-        save_subtitle(vtt, output, args.format)
-        print(f"Saved: {output}")
+        result = generate_subtitles(
+            url=args.url,
+            lang=args.lang,
+            fmt=args.format,
+            output=args.output,
+            cookies_file=args.cookies_file,
+            subtitle_url=args.subtitle_url,
+            user_agent=args.user_agent,
+        )
+        print(f"Selected: {result.selected_track}")
+        for output_path in result.outputs:
+            print(f"Saved: {output_path}")
         return 0
     except Exception as exc:
         print(f"ScenePrep error: {exc}", file=sys.stderr)

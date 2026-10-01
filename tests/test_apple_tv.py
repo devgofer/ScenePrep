@@ -29,7 +29,6 @@ def test_reject_non_apple_tv_url():
 def test_provider_requires_authorized_source():
     episode = parse_apple_tv_episode(URL)
     provider = AppleTVSubtitleProvider()
-
     with pytest.raises(ValueError, match="No authorized subtitle source"):
         provider.resolve_subtitle_url(episode)
 

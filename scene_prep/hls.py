@@ -37,13 +37,22 @@ class HLSClient:
         if cookies:
             self.session.cookies.update(cookies)
 
-    def _get_text(self, url: str) -> str:
-        response = self.session.get(url, timeout=self.timeout)
+    def _get_text(self, url: str, *, headers: dict[str, str] | None = None) -> str:
+        response = self.session.get(url, timeout=self.timeout, headers=headers)
         response.raise_for_status()
-        return response.text
+        return response.content.decode("utf-8-sig", errors="replace")
 
     def list_subtitle_tracks(self, url: str) -> list[SubtitleTrack]:
         playlist = m3u8.loads(self._get_text(url))
+        if playlist.segments and not playlist.media:
+            language = self._guess_language_from_uri(url)
+            return [SubtitleTrack(
+                name="Direct subtitle playlist",
+                language=language,
+                uri=url,
+                is_default=True,
+            )]
+
         tracks: list[SubtitleTrack] = []
         for media in playlist.media:
             if media.type != "SUBTITLES" or not media.uri:
@@ -63,6 +72,8 @@ class HLSClient:
     def choose_track(tracks: list[SubtitleTrack], language: str = "en") -> SubtitleTrack:
         if not tracks:
             raise ValueError("No HLS subtitle tracks were found.")
+        if len(tracks) == 1:
+            return tracks[0]
 
         requested = language.lower().replace("_", "-")
 
@@ -84,6 +95,25 @@ class HLSClient:
             )
         return ranked[0]
 
+    @staticmethod
+    def _guess_language_from_uri(uri: str) -> str | None:
+        tokens = [
+            "_subtitles_",
+            "-subtitles-",
+            ".subtitles.",
+            "_subs_",
+            "-subs-",
+            ".subs.",
+        ]
+        lower = uri.lower()
+        for marker in tokens:
+            if marker in lower:
+                prefix = lower.split(marker, 1)[0]
+                last = prefix.rsplit("_", 1)[-1].rsplit("-", 1)[-1]
+                if last and len(last) <= 10:
+                    return last
+        return None
+
     def download_webvtt(self, track: SubtitleTrack) -> str:
         playlist = m3u8.loads(self._get_text(track.uri))
         if not playlist.segments:
@@ -92,7 +122,16 @@ class HLSClient:
         merged: list[str] = ["WEBVTT", ""]
         for index, segment in enumerate(playlist.segments, start=1):
             segment_url = urljoin(track.uri, segment.uri)
-            text = self._get_text(segment_url).lstrip("\ufeff")
+            headers: dict[str, str] | None = None
+            if getattr(segment, "byterange", None):
+                length, _, offset = segment.byterange.partition("@")
+                if not length.isdigit():
+                    raise ValueError(f"Subtitle segment {index} has invalid BYTERANGE.")
+                start = int(offset) if offset.isdigit() else 0
+                end = start + int(length) - 1
+                headers = {"Range": f"bytes={start}-{end}"}
+
+            text = self._get_text(segment_url, headers=headers).lstrip("\ufeff")
             if not text.lstrip().startswith("WEBVTT"):
                 raise ValueError(f"Subtitle segment {index} is not WebVTT.")
 

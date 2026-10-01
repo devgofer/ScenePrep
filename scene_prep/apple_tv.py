@@ -76,5 +76,5 @@ class AppleTVSubtitleProvider:
         parsed = urlparse(authorized_subtitle_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("Authorized subtitle source must be an HTTP(S) URL.")
-
+        return authorized_subtitle_url
         return authorized_subtitle_url

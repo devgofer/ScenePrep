@@ -27,7 +27,8 @@ Apple TV episode URL / Master .m3u8
 
 ## Apple TV input
 
-ScenePrep recognizes Apple TV episode URLs and extracts the episode, show, and playable IDs. The Apple TV provider deliberately stops before any DRM/FairPlay or access-control circumvention. An authorized, unencrypted subtitle/HLS source is still required before the existing HLS downloader can fetch subtitles.
+ScenePrep recognizes Apple TV episode URLs and extracts the episode, show, and playable IDs.  
+For Apple TV, ScenePrep can try to discover subtitle/master HLS sources from your authorized session response (cookies flow), and can fall back to a direct authorized subtitle URL you provide.
 
 For example, this URL is recognized:
 
@@ -59,6 +60,15 @@ pip install -r requirements.txt
 
 ## Usage
 
+Start local Web UI (no CLI args needed in daily use):
+
+```bash
+python -m scene_prep.web
+```
+
+Then open `http://127.0.0.1:8765`, paste your Apple TV URL or authorized subtitle URL, and submit.
+Web UI supports two SRT actions: show subtitles directly in the page, or download the generated `.srt` file.
+
 List available subtitle tracks:
 
 ```bash
@@ -70,6 +80,17 @@ Download English subtitles as SRT from a direct authorized HLS source:
 ```bash
 python -m scene_prep.cli "https://example.com/master.m3u8" --lang en
 ```
+
+Download both SRT and plain-text transcript:
+
+```bash
+python -m scene_prep.cli "https://example.com/master.m3u8" --lang en --format both
+```
+
+Direct subtitle media playlist (works with segmented WebVTT and BYTERANGE playlists):
+
+```bash
+python -m scene_prep.cli "https://example.com/en_subtitles_V2-.m3u8" --format both -o episode.en
 
 For an Apple TV episode URL, provide the authorized unencrypted subtitle/HLS source explicitly:
 
@@ -84,6 +105,25 @@ Keep WebVTT:
 
 ```bash
 python -m scene_prep.cli "https://example.com/master.m3u8" --lang en --format vtt -o episode.en.vtt
+```
+
+Apple TV URL with authorized cookies file:
+
+```bash
+python -m scene_prep.cli "https://tv.apple.com/tw/episode/.../umc.cmc....?showId=...&playableId=..." \
+  --cookies-file ~/Downloads/apple-tv-cookies.txt \
+  --lang en \
+  --format both \
+  -o episode.en
+```
+
+Apple TV URL with manual authorized subtitle/master fallback:
+
+```bash
+python -m scene_prep.cli "https://tv.apple.com/tw/episode/.../umc.cmc....?showId=...&playableId=..." \
+  --subtitle-url "https://example.com/authorized/master.m3u8" \
+  --lang en \
+  --format both
 ```
 
 ## Development
@@ -101,11 +141,18 @@ pytest
 ScenePrep/
 ├── scene_prep/
 │   ├── __init__.py
+│   ├── apple_tv.py
 │   ├── cli.py
+│   ├── cookies.py
 │   ├── hls.py
-│   └── subtitle.py
+│   ├── service.py
+│   ├── subtitle.py
+│   └── web.py
 ├── tests/
+│   ├── test_apple_tv.py
+│   ├── test_cookies.py
 │   ├── test_hls.py
+│   ├── test_service.py
 │   └── test_subtitle.py
 └── requirements.txt
 ```
